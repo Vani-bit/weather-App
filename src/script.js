@@ -1,45 +1,84 @@
 const apiKey = "027ff9fcc2838f537e5ba3ad009f9b4a";
 const apiURL = "https://api.openweathermap.org/data/2.5/weather?units=metric&q=";
 
-const searchBox = document.querySelector(".search input");
-const searchBtn = document.querySelector(".search button");
+const searchBox = document.getElementById("searchbar");
+const searchBtn = document.getElementById("searchBtn");
 const weatherIcon = document.querySelector(".weather-icon");
+const dropdown = document.getElementById("dropdown");
+const errorDisplay = document.querySelector(".error");
+const weatherDisplay = document.querySelector(".weather");
+
+let recentCities = JSON.parse(localStorage.getItem("recentCities")) || [];
+
+function updateDropdown() {
+    const dropdownList = dropdown.querySelector("ul");
+    dropdownList.innerHTML = "";
+    recentCities.forEach(city => {
+        const li = document.createElement("li");
+        li.textContent = city;
+        li.classList.add("p-2", "cursor-pointer", "hover:bg-gray-200", "rounded");
+        li.addEventListener("click", () => {
+            searchBox.value = city;
+            checkWeather(city);
+        });
+        dropdownList.appendChild(li);
+    });
+    dropdown.style.display = recentCities.length ? "block" : "none";
+}
 
 async function checkWeather(city) {
-    const response = await fetch(apiURL + city + `&appid=${apiKey}`);
-
-    if(response.status == 404){
-        document.querySelector(".error").style.display = "block";
-        document.querySelector(".weather").style.display = "none";
+    if (!city) {
+        errorDisplay.textContent = "Please enter a city name.";
+        errorDisplay.classList.remove("hidden");
+        weatherDisplay.classList.add("hidden");
+        return;
     }
-    else{
-        
-        let data = await response.json();
 
-            document.querySelector(".city").innerHTML = data.name;
-            document.querySelector(".temp").innerHTML = Math.round(data.main.temp) + "°C";
-            document.querySelector(".humidity").innerHTML = data.main.humidity + "%";
-            document.querySelector(".wind").innerHTML = data.wind.speed + "kmph";
+    try {
+        const response = await fetch(apiURL + city + `&appid=${apiKey}`);
 
-            if (data.weather[0].main == "Clouds") {
-                weatherIcon.src = "images/clouds.png";
-            } else if (data.weather[0].main == "Clear") {
-                weatherIcon.src = "images/clear.png";
-            } else if (data.weather[0].main == "Rain") {
-                weatherIcon.src = "images/rain.png";
-            } else if (data.weather[0].main == "Drizzle") {
-                weatherIcon.src = "images/drizzle.png";
-            } else if (data.weather[0].main == "Mist") {
-                weatherIcon.src = "images/mist.png";
-            }
+        if (!response.ok) {
+            throw new Error("Invalid city name");
+        }
 
-            document.querySelector(".weather").style.display = "block";
-            document.querySelector(".error").style.display = "none";
+        const data = await response.json();
 
-    }  
-    
+        // Update UI with weather data
+        document.querySelector(".city").textContent = data.name;
+        document.querySelector(".temp").textContent = Math.round(data.main.temp) + "°C";
+        document.querySelector(".humidity").textContent = data.main.humidity + "%";
+        document.querySelector(".wind").textContent = data.wind.speed + " km/h";
+
+        const weatherMain = data.weather[0].main;
+        weatherIcon.src = `images/${weatherMain.toLowerCase()}.png` || "images/clear.png";
+
+        weatherDisplay.classList.remove("hidden");
+        errorDisplay.classList.add("hidden");
+
+        // Update recent cities
+        if (!recentCities.includes(city)) {
+            recentCities.unshift(city);
+            if (recentCities.length > 5) recentCities.pop(); // Limit to 5 recent cities
+            localStorage.setItem("recentCities", JSON.stringify(recentCities));
+        }
+        updateDropdown();
+
+    } catch (error) {
+        errorDisplay.textContent = error.message;
+        errorDisplay.classList.remove("hidden");
+        weatherDisplay.classList.add("hidden");
+    }
 }
 
 searchBtn.addEventListener("click", () => {
-    checkWeather(searchBox.value);
+    checkWeather(searchBox.value.trim());
 });
+
+searchBox.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+        checkWeather(searchBox.value.trim());
+    }
+});
+
+// Initial dropdown update
+updateDropdown();
